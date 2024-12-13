@@ -2,7 +2,7 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 const app = express();
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 8000;
 
 // middleware
 app.use(cors());
@@ -67,7 +67,6 @@ async function run() {
 
     app.get("/providers/:id", async (req, res) => {
       const id = req.params.id;
-      console.log(id);
       const query = { _id: new ObjectId(id) };
       const result = await providersCollection.findOne(query);
       res.send(result);
@@ -77,6 +76,14 @@ async function run() {
 
     app.get("/categories", async (req, res) => {
       const result = await categoriesCollection.find().toArray();
+      res.send(result);
+    });
+    app.get("/category", async (req, res) => {
+      const categoryName = req.query.category; // Get the category name from query params
+      console.log("Requested Category:", categoryName);
+
+      const filter = { serviceProviderType: categoryName };
+      const result = await categoriesCollection.findOne(filter); // Use `findOne` to fetch a single matching category
       res.send(result);
     });
 
@@ -91,6 +98,12 @@ async function run() {
       const email = req.query.email;
       const query = { email: email };
       const result = await appointmentsCollection.find(query).toArray();
+      res.send(result);
+    });
+    app.delete("/appointments/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await appointmentsCollection.deleteOne(query);
       res.send(result);
     });
 
