@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
+var jwt = require("jsonwebtoken");
 const app = express();
 const port = process.env.PORT || 8000;
 
@@ -36,6 +37,31 @@ async function run() {
       .collection("appointments");
     const usersCollection = client.db("serviceProvider").collection("users");
 
+    // middlewares
+    const verifyToken = (req, res, next) => {
+      console.log(req.headers.authorization);
+      console.log(req.headers);
+      if (!req.headers.authorization) {
+        return res.status(401).send({ message: "forbidden access" });
+      }
+      const token = req.headers.authorization.split(" ")[1];
+      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+          return res.status(401).send({ message: "forbidden access" });
+        }
+        req.decoded = decoded;
+        next();
+      });
+    };
+    // jwt related api
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1h",
+      });
+      res.send({ token });
+    });
+
     // user related apis
     app.post("/users", async (req, res) => {
       const user = req.body;
@@ -52,15 +78,20 @@ async function run() {
       const result = await usersCollection.insertOne(user);
       res.send(result);
     });
-    app.get("/users", async (req, res) => {
+    app.get("/users", verifyToken, async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
     });
 
-    // reviews related apis
-
-    app.get("/reviews", async (req, res) => {
-      const result = await reviewsCollection.find().toArray();
+    app.patch("/user/admin/:id", async (req, res) => {
+      const id = req.params;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          role: "admin",
+        },
+      };
+      const result = await usersCollection.updateOne(filter, updateDoc);
       res.send(result);
     });
 
@@ -77,18 +108,26 @@ async function run() {
       res.send(result);
     });
 
+    // reviews related apis
+
+    app.get("/reviews", async (req, res) => {
+      const result = await reviewsCollection.find().toArray();
+      res.send(result);
+    });
+
     // categories related apis
 
     app.get("/categories", async (req, res) => {
       const result = await categoriesCollection.find().toArray();
       res.send(result);
     });
+
     app.get("/category", async (req, res) => {
-      const categoryName = req.query.category; // Get the category name from query params
+      const categoryName = req.query.category;
       console.log("Requested Category:", categoryName);
 
       const filter = { serviceProviderType: categoryName };
-      const result = await categoriesCollection.findOne(filter); // Use `findOne` to fetch a single matching category
+      const result = await categoriesCollection.findOne(filter);
       res.send(result);
     });
 
@@ -99,12 +138,19 @@ async function run() {
       const result = await appointmentsCollection.insertOne(appointmentDetails);
       res.send(result);
     });
+
     app.get("/appointments", async (req, res) => {
       const email = req.query.email;
       const query = { email: email };
       const result = await appointmentsCollection.find(query).toArray();
       res.send(result);
     });
+
+    app.get("/AllAppointments", async (req, res) => {
+      const result = await appointmentsCollection.find().toArray();
+      res.send(result);
+    });
+
     app.delete("/appointments/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
