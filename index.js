@@ -42,13 +42,18 @@ async function run() {
       // insert user if user is new
       const query = { email: user.email };
       const existingUser = await usersCollection.findOne(query);
-      if (existingUser) {
+      const existingProvider = await providersCollection.findOne(query);
+      if (existingUser || existingProvider) {
         return res.send({
-          message: "User already exist in database",
+          message: "Already exist in database",
           insertedId: null,
         });
       }
       const result = await usersCollection.insertOne(user);
+      res.send(result);
+    });
+    app.get("/users", async (req, res) => {
+      const result = await usersCollection.find().toArray();
       res.send(result);
     });
 
