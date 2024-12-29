@@ -207,6 +207,10 @@ async function run() {
       const result = await contactsCollection.insertOne(contactSMSInfo);
       res.send(result); // Make sure to send a response
     });
+    app.get("/contacts", async (req, res) => {
+      const result = await contactsCollection.find({}).toArray();
+      res.send(result);
+    });
 
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
