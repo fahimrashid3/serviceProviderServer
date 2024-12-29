@@ -36,6 +36,9 @@ async function run() {
       .db("serviceProvider")
       .collection("appointments");
     const usersCollection = client.db("serviceProvider").collection("users");
+    const contactsCollection = client
+      .db("serviceProvider")
+      .collection("contacts");
 
     // middlewares
     const verifyToken = (req, res, next) => {
@@ -131,18 +134,17 @@ async function run() {
       const result = await providersCollection.find().toArray();
       res.send(result);
     });
-
     app.get("/providers/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await providersCollection.findOne(query);
       res.send(result);
     });
-
-    // reviews related apis
-
-    app.get("/reviews", async (req, res) => {
-      const result = await reviewsCollection.find().toArray();
+    app.post("/providers", verifyToken, verifyAdmin, async (req, res) => {
+      // TODO: remove the user from user collection
+      const providerInfo = req.body;
+      console.log(providerInfo);
+      const result = await providersCollection.insertOne(providerInfo);
       res.send(result);
     });
 
@@ -189,6 +191,21 @@ async function run() {
       const query = { _id: new ObjectId(id) };
       const result = await appointmentsCollection.deleteOne(query);
       res.send(result);
+    });
+
+    // reviews related apis
+
+    app.get("/reviews", async (req, res) => {
+      const result = await reviewsCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.post("/contacts", verifyToken, async (req, res) => {
+      console.log("Route reached");
+      // console.log(req.body);
+      const contactSMSInfo = req.body;
+      const result = await contactsCollection.insertOne(contactSMSInfo);
+      res.send(result); // Make sure to send a response
     });
 
     // Connect the client to the server	(optional starting in v4.7)
