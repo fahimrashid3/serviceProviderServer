@@ -8,8 +8,10 @@ const port = process.env.PORT || 8000;
 // middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded());
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const { default: axios } = require("axios");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.maw05.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -42,19 +44,15 @@ async function run() {
 
     // middlewares
     const verifyToken = (req, res, next) => {
-      // console.log(req.headers.authorization);
-      // console.log(req.headers);
       if (!req.headers.authorization) {
         return res.status(401).send({ message: "unauthorize access" });
       }
       const token = req.headers.authorization.split(" ")[1];
-      // console.log(token);
       jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
         if (err) {
           return res.status(401).send({ message: "unauthorize access" });
         }
         req.decoded = decoded;
-        // console.log(decoded);
         next();
       });
     };
@@ -70,6 +68,63 @@ async function run() {
       }
       next();
     };
+
+    // payment related apis
+    const axios = require("axios");
+    const qs = require("qs");
+    app.post("/create-payment", async (req, res) => {
+      const paymentInfo = req.body;
+      console.log(paymentInfo);
+
+      // Generate a unique transaction ID (can use appointment ID or another unique identifier)
+      const transactionId = `TRANS_${Date.now()}`;
+
+      const initiateData = {
+        store_id: process.env.SSL_STORE_ID,
+        store_passwd: process.env.SSL_STORE_PASSWORD,
+        total_amount: paymentInfo.amount, // Dynamically set amount
+        currency: "BDT",
+        tran_id: transactionId, // Unique transaction ID
+        success_url: `${process.env.BACKEND_URL}/success-payment`,
+        fail_url: `${process.env.BACKEND_URL}/fail-payment`, // Update fail and cancel URLs
+        cancel_url: `${process.env.BACKEND_URL}/cancel-payment`,
+        cus_name: paymentInfo.customerName || "Customer Name", // Dynamically set customer name
+        cus_email: paymentInfo.customerEmail || "cust@example.com", // Dynamically set customer email
+        cus_add1: paymentInfo.customerAddress || "Dhaka", // Customer address
+        cus_city: paymentInfo.customerCity || "Dhaka",
+        cus_state: paymentInfo.customerState || "Dhaka",
+        cus_postcode: paymentInfo.customerPostcode || "1000",
+        cus_country: paymentInfo.customerCountry || "Bangladesh",
+        cus_phone: paymentInfo.customerPhone || "01711111111",
+        shipping_method: "NO",
+        product_name: "Appointment",
+        product_category: "Appointment",
+        product_profile: "non-physical-goods",
+        multi_card_name: "mastercard,visacard,amexcard", // Supported card types
+        value_a: paymentInfo.valueA || "ref001_A", // Custom values for future reference
+        value_b: paymentInfo.valueB || "ref002_B",
+        value_c: paymentInfo.valueC || "ref003_C",
+        value_d: paymentInfo.valueD || "ref004_D",
+      };
+
+      // Make the API call to SSLCommerz
+      const response = await axios.post(
+        "https://sandbox.sslcommerz.com/gwprocess/v4/api.php",
+        qs.stringify(initiateData),
+        {
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+        }
+      );
+
+      res.send(response.data.GatewayPageURL);
+    });
+
+    app.post("/success-payment", async (req, res) => {
+      const successData = req.body;
+      console.log(successData);
+    });
 
     // jwt related api
     app.post("/jwt", async (req, res) => {
@@ -102,7 +157,6 @@ async function run() {
       res.send(result);
     });
     app.get("/user/admin/:email", verifyToken, async (req, res) => {
-      console.log(req.headers);
       const email = req.params.email;
       if (email !== req.decoded.email) {
         return res.status(403).send({ message: "forbidden access" });
@@ -143,7 +197,6 @@ async function run() {
     app.post("/providers", verifyToken, verifyAdmin, async (req, res) => {
       // TODO: remove the user from user collection
       const providerInfo = req.body;
-      console.log(providerInfo);
       const result = await providersCollection.insertOne(providerInfo);
       res.send(result);
     });
@@ -157,7 +210,6 @@ async function run() {
 
     app.get("/category", async (req, res) => {
       const categoryName = req.query.category;
-      // console.log("Requested Category:", categoryName);
 
       const filter = { serviceProviderType: categoryName };
       const result = await categoriesCollection.findOne(filter);
@@ -167,7 +219,6 @@ async function run() {
     // appointments  related  apis
     app.post("/appointments", verifyToken, async (req, res) => {
       const appointmentDetails = req.body;
-      console.log(appointmentDetails);
       const result = await appointmentsCollection.insertOne(appointmentDetails);
       res.send(result);
     });
