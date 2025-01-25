@@ -74,12 +74,9 @@ async function run() {
     const qs = require("qs");
     app.post("/create-payment", async (req, res) => {
       const paymentInfo = req.body;
-      console.log(paymentInfo);
 
-      // Generate a unique transaction ID (can use appointment ID or another unique identifier)
-      const transactionId = `TRANS_${new ObjectId()}`;
-
-      console.log(transactionId);
+      // Generate a unique transaction ID
+      const transactionId = new ObjectId().toString();
       const initiateData = {
         store_id: process.env.SSL_STORE_ID,
         store_passwd: process.env.SSL_STORE_PASSWORD,
@@ -107,7 +104,6 @@ async function run() {
         value_c: paymentInfo.valueC || "ref003_C",
         value_d: paymentInfo.valueD || "ref004_D",
       };
-
       // Make the API call to SSLCommerz
       const response = await axios.post(
         "https://sandbox.sslcommerz.com/gwprocess/v4/api.php",
@@ -119,12 +115,61 @@ async function run() {
         }
       );
 
-      res.send(response.data.GatewayPageURL);
+      // Update the selected appointments with status 'pending'
+      const query = {
+        _id: {
+          $in: paymentInfo.selectedAppointments.map((id) => new ObjectId(id)),
+        },
+      };
+      const update = { $set: { paymentId: transactionId, status: "pending" } };
+
+      const updateResult = await appointmentsCollection.updateMany(
+        query,
+        update
+      );
+
+      if (updateResult) {
+        res.send(response.data.GatewayPageURL);
+      }
     });
 
     app.post("/success-payment", async (req, res) => {
       const successData = req.body;
-      console.log(successData);
+
+      // Validate payment status
+      if (successData.status !== "VALID") {
+        return res.status(400).send({ error: "Invalid payment" });
+      }
+
+      const transactionId = successData.tran_id;
+
+      const query = {
+        paymentId: transactionId,
+      };
+
+      const update = {
+        $set: {
+          paymentId: transactionId,
+          status: "paid",
+        },
+      };
+
+      // Update matching documents in the database
+      const updateResult = await appointmentsCollection.updateMany(
+        query,
+        update
+      );
+
+      // Log the update result
+      console.log(
+        `Matched ${updateResult.matchedCount} documents and updated ${updateResult.modifiedCount} documents.`
+      );
+
+      // Send response to the client
+      res.send({
+        message: "Payment successful and appointments updated",
+        updateResult,
+      });
     });
 
     // jwt related api
