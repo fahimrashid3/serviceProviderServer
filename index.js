@@ -77,19 +77,20 @@ async function run() {
       console.log(paymentInfo);
 
       // Generate a unique transaction ID (can use appointment ID or another unique identifier)
-      const transactionId = `TRANS_${Date.now()}`;
+      const transactionId = `TRANS_${new ObjectId()}`;
 
+      console.log(transactionId);
       const initiateData = {
         store_id: process.env.SSL_STORE_ID,
         store_passwd: process.env.SSL_STORE_PASSWORD,
-        total_amount: paymentInfo.amount, // Dynamically set amount
+        total_amount: paymentInfo.amount, // TODO:Dynamically set amount
         currency: "BDT",
-        tran_id: transactionId, // Unique transaction ID
+        tran_id: transactionId,
         success_url: `${process.env.BACKEND_URL}/success-payment`,
         fail_url: `${process.env.BACKEND_URL}/fail-payment`, // Update fail and cancel URLs
         cancel_url: `${process.env.BACKEND_URL}/cancel-payment`,
-        cus_name: paymentInfo.customerName || "Customer Name", // Dynamically set customer name
-        cus_email: paymentInfo.customerEmail || "cust@example.com", // Dynamically set customer email
+        cus_name: paymentInfo.customerName || "Customer Name",
+        cus_email: paymentInfo.customerEmail || "cust@example.com",
         cus_add1: paymentInfo.customerAddress || "Dhaka", // Customer address
         cus_city: paymentInfo.customerCity || "Dhaka",
         cus_state: paymentInfo.customerState || "Dhaka",
@@ -156,6 +157,13 @@ async function run() {
       const result = await usersCollection.find().toArray();
       res.send(result);
     });
+    app.get("/user", verifyToken, async (req, res) => {
+      const { email } = req.query;
+      const query = { email: email };
+      const result = await usersCollection.findOne(query);
+      res.send(result);
+    });
+
     app.get("/user/admin/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       if (email !== req.decoded.email) {
