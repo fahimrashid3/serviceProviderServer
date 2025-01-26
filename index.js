@@ -166,10 +166,17 @@ async function run() {
       );
 
       // Send response to the client
-      res.send({
-        message: "Payment successful and appointments updated",
-        updateResult,
-      });
+      // res.send({
+      //   message: "Payment successful and appointments updated",
+      //   updateResult,
+      // });
+      res.redirect(`${process.env.FRONTEND_URL}/success`);
+    });
+    app.post("/fail-payment", async (req, res) => {
+      res.redirect(`${process.env.FRONTEND_URL}/fail`);
+    });
+    app.post("/cancel-payment", async (req, res) => {
+      res.redirect(`${process.env.FRONTEND_URL}/fail`);
     });
 
     // jwt related api
@@ -248,10 +255,21 @@ async function run() {
       res.send(result);
     });
     app.post("/providers", verifyToken, verifyAdmin, async (req, res) => {
-      // TODO: remove the user from user collection
       const providerInfo = req.body;
-      const result = await providersCollection.insertOne(providerInfo);
-      res.send(result);
+      const email = providerInfo.email;
+
+      // Check and remove the user from the usersCollection
+      const filter = { email: email };
+      const removeFromUser = await usersCollection.deleteOne(filter);
+
+      if (removeFromUser.deletedCount > 0) {
+        // If user is successfully removed, add the provider to providersCollection
+        const result = await providersCollection.insertOne(providerInfo);
+        res.send({ message: "Provider added successfully", result });
+      } else {
+        // If no user was found to delete
+        res.send({ message: "User does not exist. Check the email address." });
+      }
     });
 
     // categories related apis
