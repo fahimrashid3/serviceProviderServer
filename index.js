@@ -68,6 +68,18 @@ async function run() {
       }
       next();
     };
+    // verify provider
+    // verify provider mush be use after verify token coz (get email from decoded )
+    const verifyProvider = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      const isProvider = user?.role === "provider";
+      if (!isProvider) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
 
     // payment related apis
     const axios = require("axios");
@@ -195,7 +207,8 @@ async function run() {
       const query = { email: user.email };
       const existingUser = await usersCollection.findOne(query);
       const existingProvider = await providersCollection.findOne(query);
-      if (existingUser || existingProvider) {
+      // if (existingUser || existingProvider) {
+      if (existingUser) {
         return res.send({
           message: "Already exist in database",
           insertedId: null,
@@ -229,6 +242,19 @@ async function run() {
       }
       res.send({ admin });
     });
+    app.get("/user/provider/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      let provider = false;
+      if (user) {
+        provider = user?.role === "provider";
+      }
+      res.send({ provider });
+    });
 
     // make admin
     app.patch("/user/admin/:id", verifyToken, verifyAdmin, async (req, res) => {
@@ -258,17 +284,38 @@ async function run() {
       const providerInfo = req.body;
       const email = providerInfo.email;
 
-      // Check and remove the user from the usersCollection
-      const filter = { email: email };
-      const removeFromUser = await usersCollection.deleteOne(filter);
+      // Check if the user already exists in providersCollection
+      const existingProvider = await providersCollection.findOne({
+        email: email,
+      });
 
-      if (removeFromUser.deletedCount > 0) {
-        // If user is successfully removed, add the provider to providersCollection
-        const result = await providersCollection.insertOne(providerInfo);
-        res.send({ message: "Provider added successfully", result });
+      if (existingProvider) {
+        // If the user is already a provider
+        return res.send({ message: "Provider already exists" });
+      }
+
+      // Check if the user exists in usersCollection
+      const user = await usersCollection.findOne({ email: email });
+
+      if (user) {
+        // Update the user's role to "provider"
+        const updateRoleResult = await usersCollection.updateOne(
+          { email: email },
+          { $set: { role: "provider" } }
+        );
+
+        if (updateRoleResult.modifiedCount > 0) {
+          // Add the user to providersCollection
+          const result = await providersCollection.insertOne(providerInfo);
+          return res.send({ message: "Provider added successfully", result });
+        } else {
+          return res.send({ message: "Failed to update user role." });
+        }
       } else {
-        // If no user was found to delete
-        res.send({ message: "User does not exist. Check the email address." });
+        // If no user was found in usersCollection
+        return res.send({
+          message: "User does not exist. Check the email address.",
+        });
       }
     });
 
