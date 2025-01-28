@@ -355,6 +355,24 @@ async function run() {
       res.send(result);
     });
 
+    app.patch("/appointment", verifyToken, verifyAdmin, async (req, res) => {
+      const appointmentUpdateInfo = req.body;
+      const filter = { _id: new ObjectId(appointmentUpdateInfo.appointmentId) };
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: {
+          providerEmail: appointmentUpdateInfo.providerEmail,
+          status: appointmentUpdateInfo.status,
+        },
+      };
+      const result = await appointmentsCollection.updateOne(
+        filter,
+        updateDoc,
+        options
+      );
+      res.send(result);
+    });
+
     // get all appointment data
     app.get("/AllAppointments", verifyToken, verifyAdmin, async (req, res) => {
       const result = await appointmentsCollection.find().toArray();
@@ -364,7 +382,7 @@ async function run() {
     // delete single appointment by user
     app.delete("/appointments/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
+      const filter = { _id: new ObjectId(id) };
       const result = await appointmentsCollection.deleteOne(query);
       res.send(result);
     });
