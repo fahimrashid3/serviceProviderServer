@@ -361,7 +361,7 @@ async function run() {
       const options = { upsert: true };
       const updateDoc = {
         $set: {
-          providerEmail: appointmentUpdateInfo.providerEmail,
+          providerEmail: appointmentUpdateInfo.providerId,
           status: appointmentUpdateInfo.status,
         },
       };
