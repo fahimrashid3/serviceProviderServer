@@ -361,7 +361,7 @@ async function run() {
       const options = { upsert: true };
       const updateDoc = {
         $set: {
-          providerEmail: appointmentUpdateInfo.providerId,
+          providerEmail: appointmentUpdateInfo.providerEmail,
           status: appointmentUpdateInfo.status,
         },
       };
@@ -386,6 +386,12 @@ async function run() {
       const result = await appointmentsCollection.deleteOne(query);
       res.send(result);
     });
+    app.get("/assignAppointments/:email", verifyToken, async (req, res) => {
+      const providerEmail = req.params.email;
+      const filter = { providerEmail: providerEmail };
+      const result = await appointmentsCollection.find(filter).toArray();
+      res.send(result);
+    });
 
     // reviews related apis
 
@@ -407,12 +413,12 @@ async function run() {
     });
 
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
-    // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    // await client.connect();
+    // // Send a ping to confirm a successful connection
+    // await client.db("admin").command({ ping: 1 });
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!"
+    // );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
