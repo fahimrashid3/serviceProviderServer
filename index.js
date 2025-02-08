@@ -381,12 +381,46 @@ async function run() {
       res.send(result);
     });
 
+    app.patch(
+      "/appointments",
+      verifyToken,
+      verifyProvider,
+      async (req, res) => {
+        const appointmentUpdateInfo = req.body;
+        const filter = {
+          _id: new ObjectId(appointmentUpdateInfo.appointmentId),
+        };
+        const options = { upsert: true };
+
+        const updateDoc = {
+          $set: {
+            status: appointmentUpdateInfo.status,
+            userMeetingLink: appointmentUpdateInfo.userMeetingLink,
+          },
+        };
+
+        const result = await appointmentsCollection.updateOne(
+          filter,
+          updateDoc,
+          options
+        );
+
+        res.send(result);
+      }
+    );
+
     // get all appointment data
     app.get("/AllAppointments", verifyToken, verifyAdmin, async (req, res) => {
       const result = await appointmentsCollection.find().toArray();
       res.send(result);
     });
 
+    app.get("/appointment/:roomId", verifyToken, async (req, res) => {
+      const id = req.params.roomId;
+      const filter = { _id: new ObjectId(id) };
+      const result = await appointmentsCollection.findOne(filter);
+      res.send(result);
+    });
     // delete single appointment by user
     app.delete("/appointments/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
