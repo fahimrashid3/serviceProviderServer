@@ -49,6 +49,7 @@ async function run() {
     const contactsCollection = client
       .db("serviceProvider")
       .collection("contacts");
+    const blogsCollection = client.db("serviceProvider").collection("blogs");
 
     // middlewares
     const verifyToken = (req, res, next) => {
@@ -433,6 +434,31 @@ async function run() {
       const filter = { providerEmail: providerEmail };
       const result = await appointmentsCollection.find(filter).toArray();
       res.send(result);
+    });
+    // blogs related api
+    app.get("/blogs", async (req, res) => {
+      const result = await blogsCollection.find().toArray();
+      res.send(result);
+    });
+    app.get("/blogAuthor/:authorId", async (req, res) => {
+      const { authorId } = req.params;
+      try {
+        // Convert authorId to ObjectId and query the database
+        const author = await providersCollection.findOne({
+          _id: ObjectId(authorId),
+        });
+
+        // If no author is found, send a 404 response
+        if (!author) {
+          return res.status(404).send({ message: "Author not found" });
+        }
+
+        // Send the author data as the response
+        res.send(author);
+      } catch (error) {
+        console.error("Error fetching author:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
     });
 
     // reviews related apis
