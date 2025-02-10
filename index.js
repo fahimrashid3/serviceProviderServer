@@ -440,25 +440,19 @@ async function run() {
       const result = await blogsCollection.find().toArray();
       res.send(result);
     });
-    app.get("/blogAuthor/:authorId", async (req, res) => {
-      const { authorId } = req.params;
-      try {
-        // Convert authorId to ObjectId and query the database
-        const author = await providersCollection.findOne({
-          _id: ObjectId(authorId),
-        });
+    app.get("/blog/:_id", async (req, res) => {
+      const { _id } = req.params;
 
-        // If no author is found, send a 404 response
-        if (!author) {
-          return res.status(404).send({ message: "Author not found" });
-        }
+      // Use `new ObjectId()` to instantiate it correctly
+      const blog = await blogsCollection.findOne({
+        _id: new ObjectId(_id),
+      });
 
-        // Send the author data as the response
-        res.send(author);
-      } catch (error) {
-        console.error("Error fetching author:", error);
-        res.status(500).send({ message: "Internal server error" });
+      if (!blog) {
+        return res.status(404).send({ message: "Blog not found" });
       }
+
+      res.send(blog);
     });
 
     // reviews related apis
