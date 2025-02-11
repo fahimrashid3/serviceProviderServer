@@ -440,10 +440,9 @@ async function run() {
       const result = await blogsCollection.find().toArray();
       res.send(result);
     });
+
     app.get("/blog/:_id", async (req, res) => {
       const { _id } = req.params;
-
-      // Use `new ObjectId()` to instantiate it correctly
       const blog = await blogsCollection.findOne({
         _id: new ObjectId(_id),
       });
@@ -453,6 +452,17 @@ async function run() {
       }
 
       res.send(blog);
+    });
+
+    app.get("/providersInBlog/:id", async (req, res) => {
+      const { id } = req.params;
+      const query = { _id: new ObjectId(id) };
+
+      const result = await providersCollection.findOne(query, {
+        projection: { name: 1, userImg: 1 },
+      });
+
+      res.send(result);
     });
 
     // reviews related apis
