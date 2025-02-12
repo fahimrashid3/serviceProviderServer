@@ -454,6 +454,29 @@ async function run() {
       res.send(blog);
     });
 
+    app.get("/myBlogs/:userId", async (req, res) => {
+      const { userId } = req.params;
+
+      if (!userId || !ObjectId.isValid(userId)) {
+        return res.status(400).send({ message: "Invalid user ID format" });
+      }
+
+      try {
+        const blogs = await blogsCollection
+          .find({ authorId: userId })
+          .toArray();
+
+        if (!blogs.length) {
+          return res.send({ message: "No blogs written by you" });
+        }
+
+        res.send(blogs);
+      } catch (error) {
+        console.error("Error fetching blogs:", error);
+        res.status(500).send({ message: "Server error" });
+      }
+    });
+
     app.get("/providersInBlog/:id", async (req, res) => {
       const { id } = req.params;
       const query = { _id: new ObjectId(id) };
