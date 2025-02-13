@@ -182,9 +182,9 @@ async function run() {
       );
 
       // Log the update result
-      console.log(
-        `Matched ${updateResult.matchedCount} documents and updated ${updateResult.modifiedCount} documents.`
-      );
+      // console.log(
+      //   `Matched ${updateResult.matchedCount} documents and updated ${updateResult.modifiedCount} documents.`
+      // );
 
       // Send response to the client
       // res.send({
@@ -437,10 +437,62 @@ async function run() {
     });
     // blogs related api
     app.get("/blogs", async (req, res) => {
-      const result = await blogsCollection.find().toArray();
-      res.send(result);
-    });
+      try {
+          const result = await blogsCollection
+              .find()
+              .sort({ createdAt: -1 })
+              .toArray();
+  
+          res.send(result);
+      } catch (error) {
+          console.error("Error fetching blogs:", error);
+          res.status(500).json({ success: false, message: "Internal Server Error" });
+      }
+  });
+  
+  app.post("/blogs", verifyToken, verifyProvider, async (req, res) => {
+    try {
+        const data = req.body;
+        const dateObj = new Date();
 
+        const timeOptions = { hour: 'numeric', minute: '2-digit', hour12: true };
+        const formattedTime = dateObj.toLocaleTimeString('en-US', timeOptions);
+
+        const dateOptions = { year: 'numeric', month: '2-digit', day: '2-digit' };
+        const formattedDate = dateObj.toLocaleDateString('en-CA', dateOptions);
+
+        const email = data.authorEmail;
+        const authorQuery = { email: email };
+        const authorINFO = await providersCollection.findOne(authorQuery);
+
+        // Create new blog object with additional fields
+        const newBlog = {
+            title: data.title,
+            content: data.content,
+            authorId: authorINFO._id, // Ensure authorId is stored
+            img: data.img, // Cloudinary image URL
+            category: authorINFO.category,
+            time: formattedTime,
+            date: formattedDate,
+            totalView: data.totalView || 0,
+            rating: data.rating || 0,
+            totalRating: data.totalRating || 0,
+            createdAt: dateObj,
+        };
+
+        console.log("New Blog:", newBlog);
+
+        // Insert into MongoDB
+        const result = await blogsCollection.insertOne(newBlog);
+
+        res.status(201).json({ success: true, message: "Blog added successfully", blogId: result.insertedId });
+    } catch (error) {
+        console.error("Error adding blog:", error);
+        res.status(500).json({ success: false, message: "Internal Server Error" });
+    }
+});
+
+  
     app.get("/blog/:_id", async (req, res) => {
       const { _id } = req.params;
       const blog = await blogsCollection.findOne({
@@ -496,7 +548,7 @@ async function run() {
     });
 
     app.post("/contacts", verifyToken, async (req, res) => {
-      console.log("Route reached");
+      // console.log("Route reached");
       // console.log(req.body);
       const contactSMSInfo = req.body;
       const result = await contactsCollection.insertOne(contactSMSInfo);
