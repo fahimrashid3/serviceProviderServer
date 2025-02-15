@@ -438,95 +438,98 @@ async function run() {
     // blogs related api
     app.get("/blogs", async (req, res) => {
       try {
-          const result = await blogsCollection
-              .find()
-              .sort({ createdAt: -1 })
-              .toArray();
-  
-          res.send(result);
+        const result = await blogsCollection
+          .find()
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.send(result);
       } catch (error) {
-          console.error("Error fetching blogs:", error);
-          res.status(500).json({ success: false, message: "Internal Server Error" });
+        console.error("Error fetching blogs:", error);
+        res
+          .status(500)
+          .json({ success: false, message: "Internal Server Error" });
       }
-  });
-  
-  app.post("/blogs", verifyToken, verifyProvider, async (req, res) => {
-    try {
+    });
+
+    app.post("/blogs", verifyToken, verifyProvider, async (req, res) => {
+      try {
         const data = req.body;
         const dateObj = new Date();
 
-        const timeOptions = { hour: 'numeric', minute: '2-digit', hour12: true };
-        const formattedTime = dateObj.toLocaleTimeString('en-US', timeOptions);
+        const timeOptions = {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        };
+        const formattedTime = dateObj.toLocaleTimeString("en-US", timeOptions);
 
-        const dateOptions = { year: 'numeric', month: '2-digit', day: '2-digit' };
-        const formattedDate = dateObj.toLocaleDateString('en-CA', dateOptions);
+        const dateOptions = {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        };
+        const formattedDate = dateObj.toLocaleDateString("en-CA", dateOptions);
 
         const email = data.authorEmail;
-        const authorQuery = { email: email };
-        const authorINFO = await providersCollection.findOne(authorQuery);
 
-        // Create new blog object with additional fields
+        // Get author details using email
+        const authorINFO = await providersCollection.findOne({ email: email });
+
+        if (!authorINFO) {
+          return res.status(404).send({ message: "Author not found" });
+        }
+
         const newBlog = {
-            title: data.title,
-            content: data.content,
-            authorId: authorINFO._id, // Ensure authorId is stored
-            img: data.img, // Cloudinary image URL
-            category: authorINFO.category,
-            time: formattedTime,
-            date: formattedDate,
-            totalView: data.totalView || 0,
-            rating: data.rating || 0,
-            totalRating: data.totalRating || 0,
-            createdAt: dateObj,
+          title: data.title,
+          content: data.content,
+          authorEmail: email, // Store email instead of ObjectId
+          img: data.img,
+          category: authorINFO.category,
+          time: formattedTime,
+          date: formattedDate,
+          totalView: data.totalView || 0,
+          rating: data.rating || 0,
+          totalRating: data.totalRating || 0,
+          createdAt: dateObj,
         };
-
-        console.log("New Blog:", newBlog);
 
         // Insert into MongoDB
         const result = await blogsCollection.insertOne(newBlog);
-
-        res.status(201).json({ success: true, message: "Blog added successfully", blogId: result.insertedId });
-    } catch (error) {
+        res.send(result);
+      } catch (error) {
         console.error("Error adding blog:", error);
-        res.status(500).json({ success: false, message: "Internal Server Error" });
-    }
-});
+        res
+          .status(500)
+          .json({ success: false, message: "Internal Server Error" });
+      }
+    });
 
-  
-    app.get("/blog/:_id", async (req, res) => {
-      const { _id } = req.params;
-      const blog = await blogsCollection.findOne({
-        _id: new ObjectId(_id),
-      });
+    app.get("/myBlogs/:email", async (req, res) => {
+      const { email } = req.params;
 
-      if (!blog) {
-        return res.status(404).send({ message: "Blog not found" });
+      if (!email) {
+        return res.status(400).send({ message: "Email is required" });
       }
 
-      res.send(blog);
+      const blogs = await blogsCollection
+        .find({ authorEmail: email })
+        .toArray();
+      res.send(blogs);
     });
 
     app.get("/myBlogs/:userId", async (req, res) => {
       const { userId } = req.params;
+      console.log(userId);
+      const query = { authorId: userId };
+      console.log(query);
+      const blogs = await blogsCollection.find(query).toArray();
 
-      if (!userId || !ObjectId.isValid(userId)) {
-        return res.status(400).send({ message: "Invalid user ID format" });
+      if (!blogs.length) {
+        return res.send({ message: "No blogs written by you" });
       }
 
-      try {
-        const blogs = await blogsCollection
-          .find({ authorId: userId })
-          .toArray();
-
-        if (!blogs.length) {
-          return res.send({ message: "No blogs written by you" });
-        }
-
-        res.send(blogs);
-      } catch (error) {
-        console.error("Error fetching blogs:", error);
-        res.status(500).send({ message: "Server error" });
-      }
+      res.send(blogs);
     });
 
     app.get("/providersInBlog/:id", async (req, res) => {
