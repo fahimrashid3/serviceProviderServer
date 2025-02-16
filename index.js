@@ -331,7 +331,6 @@ async function run() {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await providersCollection.deleteOne(query);
-      console.log(id);
       res.send(result);
     });
 
@@ -518,29 +517,49 @@ async function run() {
       res.send(blogs);
     });
 
-    app.get("/myBlogs/:userId", async (req, res) => {
-      const { userId } = req.params;
-      console.log(userId);
-      const query = { authorId: userId };
-      console.log(query);
-      const blogs = await blogsCollection.find(query).toArray();
+    app.get("/blog/:_id", async (req, res) => {
+      try {
+        const { _id } = req.params;
 
-      if (!blogs.length) {
-        return res.send({ message: "No blogs written by you" });
+        if (!_id || _id.length !== 24) {
+          // ✅ Validate ObjectId length
+          return res.status(400).json({ message: "Invalid blog ID format" });
+        }
+
+        const query = { _id: new ObjectId(_id) };
+        console.log("Fetching blog with query:", query); // ✅ Debugging log
+
+        const blog = await blogsCollection.findOne(query);
+
+        if (!blog) {
+          return res.status(404).json({ message: "Blog not found" });
+        }
+
+        res.json(blog);
+      } catch (error) {
+        console.error("Error fetching blog:", error);
+        res.status(500).json({ message: "Internal Server Error" });
       }
-
-      res.send(blogs);
     });
 
-    app.get("/providersInBlog/:id", async (req, res) => {
-      const { id } = req.params;
-      const query = { _id: new ObjectId(id) };
+    app.get("/providersInBlog/:email", async (req, res) => {
+      try {
+        const { email } = req.params;
+        const query = { email: email };
 
-      const result = await providersCollection.findOne(query, {
-        projection: { name: 1, userImg: 1 },
-      });
+        const result = await providersCollection.findOne(query, {
+          projection: { name: 1, userImg: 1 },
+        });
 
-      res.send(result);
+        if (!result) {
+          return res.status(404).json({ message: "Author not found" });
+        }
+
+        res.json(result);
+      } catch (error) {
+        console.error("Error fetching provider:", error);
+        res.status(500).json({ message: "Internal Server Error" });
+      }
     });
 
     // reviews related apis
