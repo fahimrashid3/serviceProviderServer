@@ -1,22 +1,38 @@
-const express = require("express");
-const cors = require("cors");
-require("dotenv").config();
-var jwt = require("jsonwebtoken");
+// ==============================
+// Required Modules and Imports
+// ==============================
+const express = require("express"); // Express framework for building the server
+const cors = require("cors"); // Middleware for enabling CORS
+require("dotenv").config(); // Load environment variables from .env file
+const { Resend } = require("resend"); // Resend for sending emails
+const bodyParser = require("body-parser"); // Middleware for parsing request bodies
+const jwt = require("jsonwebtoken"); // JSON Web Token for authentication
+const rateLimit = require("express-rate-limit"); // Middleware for rate limiting
+// const { body, validationResult } = require("express-validator"); // Validation middleware (commented out)
+
+// ==============================
+// Initialize Express App
+// ==============================
 const app = express();
-const port = process.env.PORT || 8000;
-const rateLimit = require("express-rate-limit");
-// const { body, validationResult } = require("express-validator");
+const port = process.env.PORT || 8000; // Set the server port
 
-// middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded());
+// ==============================
+// Middleware Setup
+// ==============================
+app.use(cors()); // Enable CORS for all routes
+app.use(express.json()); // Parse JSON request bodies
+app.use(express.urlencoded({ extended: true })); // Parse URL-encoded request bodies
+app.use(bodyParser.urlencoded({ extended: true })); // Parse URL-encoded bodies (alternative to express.urlencoded)
+app.use(bodyParser.json()); // Parse JSON bodies (alternative to express.json)
 
+// ==============================
+// Rate Limiting Middleware
+// ==============================
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per windowMs
 });
-app.use("/jwt", limiter);
+app.use(limiter); // Apply rate limiting to all requests
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const { default: axios } = require("axios");
@@ -101,15 +117,15 @@ async function run() {
       const initiateData = {
         store_id: process.env.SSL_STORE_ID,
         store_passwd: process.env.SSL_STORE_PASSWORD,
-        total_amount: paymentInfo.amount, // TODO:Dynamically set amount
+        total_amount: paymentInfo.amount,
         currency: "BDT",
         tran_id: transactionId,
         success_url: `${process.env.BACKEND_URL}/success-payment`,
-        fail_url: `${process.env.BACKEND_URL}/fail-payment`, // Update fail and cancel URLs
+        fail_url: `${process.env.BACKEND_URL}/fail-payment`,
         cancel_url: `${process.env.BACKEND_URL}/cancel-payment`,
         cus_name: paymentInfo.customerName || "Customer Name",
-        cus_email: paymentInfo.customerEmail || "cust@example.com",
-        cus_add1: paymentInfo.customerAddress || "Dhaka", // Customer address
+        cus_email: paymentInfo.customerEmail || "cust@example.com", // Ensure this is set
+        cus_add1: paymentInfo.customerAddress || "Dhaka",
         cus_city: paymentInfo.customerCity || "Dhaka",
         cus_state: paymentInfo.customerState || "Dhaka",
         cus_postcode: paymentInfo.customerPostcode || "1000",
@@ -119,12 +135,13 @@ async function run() {
         product_name: "Appointment",
         product_category: "Appointment",
         product_profile: "non-physical-goods",
-        multi_card_name: "mastercard,visacard,amexcard", // Supported card types
-        value_a: paymentInfo.valueA || "ref001_A", // Custom values for future reference
+        multi_card_name: "mastercard,visacard,amexcard",
+        value_a: paymentInfo.valueA || "ref001_A",
         value_b: paymentInfo.valueB || "ref002_B",
         value_c: paymentInfo.valueC || "ref003_C",
         value_d: paymentInfo.valueD || "ref004_D",
       };
+
       // Make the API call to SSLCommerz
       const response = await axios.post(
         "https://sandbox.sslcommerz.com/gwprocess/v4/api.php",
@@ -136,13 +153,19 @@ async function run() {
         }
       );
 
-      // Update the selected appointments with status 'pending'
+      // Update the selected appointments with status 'pending' and store the email
       const query = {
         _id: {
           $in: paymentInfo.selectedAppointments.map((id) => new ObjectId(id)),
         },
       };
-      const update = { $set: { paymentId: transactionId, status: "pending" } };
+      const update = {
+        $set: {
+          paymentId: transactionId,
+          status: "pending",
+          customerEmail: paymentInfo.customerEmail, // Store the email
+        },
+      };
 
       const updateResult = await appointmentsCollection.updateMany(
         query,
@@ -153,9 +176,9 @@ async function run() {
         res.send(response.data.GatewayPageURL);
       }
     });
-
     app.post("/success-payment", async (req, res) => {
       const successData = req.body;
+      console.log("Success Data:", successData); // Log the entire response
 
       // Validate payment status
       if (successData.status !== "VALID") {
@@ -164,35 +187,39 @@ async function run() {
 
       const transactionId = successData.tran_id;
 
-      const query = {
+      // Fetch the appointment(s) associated with this transaction
+      const appointment = await appointmentsCollection.findOne({
         paymentId: transactionId,
-      };
+      });
 
-      const update = {
-        $set: {
-          paymentId: transactionId,
-          status: "paid",
-        },
-      };
+      if (!appointment) {
+        return res.status(404).send({ error: "Appointment not found" });
+      }
+
+      const userEmail = appointment.customerEmail; // Retrieve the email from the database
+      console.log("User Email:", userEmail);
+
+      const query = { paymentId: transactionId };
+      const update = { $set: { paymentId: transactionId, status: "paid" } };
 
       // Update matching documents in the database
-      const updateResult = await appointmentsCollection.updateMany(
-        query,
-        update
-      );
+      await appointmentsCollection.updateMany(query, update);
 
-      // Log the update result
-      // console.log(
-      //   `Matched ${updateResult.matchedCount} documents and updated ${updateResult.modifiedCount} documents.`
-      // );
+      // Send confirmation email
+      const resend = new Resend(process.env.RESEND_API_KEY); // Use environment variable
+      await resend.emails.send({
+        from: "onboarding@resend.dev",
+        to: userEmail, // Send to the user who made the payment
+        subject: "Payment Successful",
+        html: `<p>Dear customer,</p>
+               <p>Your payment of <strong>${successData.currency} ${successData.amount}</strong> was successful.</p>
+               <p>Transaction ID: <strong>${transactionId}</strong></p>
+        <p>Thank you for your purchase!</p>`,
+      });
 
-      // Send response to the client
-      // res.send({
-      //   message: "Payment successful and appointments updated",
-      //   updateResult,
-      // });
       res.redirect(`${process.env.FRONTEND_URL}/success`);
     });
+
     app.post("/fail-payment", async (req, res) => {
       res.redirect(`${process.env.FRONTEND_URL}/fail`);
     });
@@ -352,6 +379,10 @@ async function run() {
     // appointments  related  apis
     app.post("/appointments", verifyToken, async (req, res) => {
       const appointmentDetails = req.body;
+
+      // Ensure createdAt is stored as a Date object
+      appointmentDetails.createdAt = new Date();
+
       const result = await appointmentsCollection.insertOne(appointmentDetails);
       res.send(result);
     });
@@ -359,7 +390,10 @@ async function run() {
     app.get("/appointments", verifyToken, async (req, res) => {
       const email = req.query.email;
       const query = { email: email };
-      const result = await appointmentsCollection.find(query).toArray();
+      const result = await appointmentsCollection
+        .find(query)
+        .sort({ createdAt: -1 })
+        .toArray();
       res.send(result);
     });
 
@@ -411,7 +445,10 @@ async function run() {
 
     // get all appointment data
     app.get("/AllAppointments", verifyToken, verifyAdmin, async (req, res) => {
-      const result = await appointmentsCollection.find().toArray();
+      const result = await appointmentsCollection
+        .find()
+        .sort({ createdAt: -1 })
+        .toArray();
       res.send(result);
     });
 
@@ -522,12 +559,10 @@ async function run() {
         const { _id } = req.params;
 
         if (!_id || _id.length !== 24) {
-          // ✅ Validate ObjectId length
           return res.status(400).json({ message: "Invalid blog ID format" });
         }
 
         const query = { _id: new ObjectId(_id) };
-        console.log("Fetching blog with query:", query); // ✅ Debugging log
 
         const blog = await blogsCollection.findOne(query);
 
