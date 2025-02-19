@@ -178,7 +178,6 @@ async function run() {
     });
     app.post("/success-payment", async (req, res) => {
       const successData = req.body;
-      console.log("Success Data:", successData); // Log the entire response
 
       // Validate payment status
       if (successData.status !== "VALID") {
@@ -197,7 +196,6 @@ async function run() {
       }
 
       const userEmail = appointment.customerEmail; // Retrieve the email from the database
-      console.log("User Email:", userEmail);
 
       const query = { paymentId: transactionId };
       const update = { $set: { paymentId: transactionId, status: "paid" } };
@@ -209,7 +207,7 @@ async function run() {
       const resend = new Resend(process.env.RESEND_API_KEY); // Use environment variable
       await resend.emails.send({
         from: "onboarding@resend.dev",
-        to: userEmail, // Send to the user who made the payment
+        to: userEmail,
         subject: "Payment Successful",
         html: `<p>Dear customer,</p>
                <p>Your payment of <strong>${successData.currency} ${successData.amount}</strong> was successful.</p>
@@ -397,26 +395,33 @@ async function run() {
       res.send(result);
     });
 
-    app.patch("/appointment", verifyToken, verifyAdmin, async (req, res) => {
-      const appointmentUpdateInfo = req.body;
-      const filter = { _id: new ObjectId(appointmentUpdateInfo.appointmentId) };
-      const options = { upsert: true };
-      const updateDoc = {
-        $set: {
-          providerEmail: appointmentUpdateInfo.providerEmail,
-          status: appointmentUpdateInfo.status,
-        },
-      };
-      const result = await appointmentsCollection.updateOne(
-        filter,
-        updateDoc,
-        options
-      );
-      res.send(result);
-    });
+    app.patch(
+      "/appointmentUpdateByAdmin",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const appointmentUpdateInfo = req.body;
+        const filter = {
+          _id: new ObjectId(appointmentUpdateInfo.appointmentId),
+        };
+        const options = { upsert: true };
+        const updateDoc = {
+          $set: {
+            providerEmail: appointmentUpdateInfo.providerEmail,
+            status: appointmentUpdateInfo.status,
+          },
+        };
+        const result = await appointmentsCollection.updateOne(
+          filter,
+          updateDoc,
+          options
+        );
+        res.send(result);
+      }
+    );
 
     app.patch(
-      "/appointments",
+      "/appointmentUpdateByProvider",
       verifyToken,
       verifyProvider,
       async (req, res) => {
@@ -550,6 +555,7 @@ async function run() {
 
       const blogs = await blogsCollection
         .find({ authorEmail: email })
+        .sort({ createdAt: -1 })
         .toArray();
       res.send(blogs);
     });
@@ -605,8 +611,6 @@ async function run() {
     });
 
     app.post("/contacts", verifyToken, async (req, res) => {
-      // console.log("Route reached");
-      // console.log(req.body);
       const contactSMSInfo = req.body;
       const result = await contactsCollection.insertOne(contactSMSInfo);
       res.send(result); // Make sure to send a response
