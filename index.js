@@ -308,6 +308,28 @@ async function run() {
       const result = await providersCollection.find().toArray();
       res.send(result);
     });
+    app.get("/topProvider", async (req, res) => {
+      console.log("API hit: /topProvider");
+
+      try {
+        const providers = await providersCollection.find({}).toArray();
+
+        // Convert totalReview to a number and filter providers
+        const topProviders = providers
+          .filter((p) => Number(p.totalReview) >= 10)
+          .sort((a, b) => b.rating - a.rating)
+          .slice(0, 6);
+
+        if (topProviders.length === 0) {
+          return res.status(404).json({ message: "No top providers found." });
+        }
+
+        res.json(topProviders);
+      } catch (error) {
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    });
+
     app.get("/providers/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -421,9 +443,8 @@ async function run() {
     );
 
     app.patch(
-      "/appointmentUpdateByProvider",
+      "/appointmentUpdateWhenJoinRoom",
       verifyToken,
-      verifyProvider,
       async (req, res) => {
         const appointmentUpdateInfo = req.body;
         const filter = {
@@ -467,7 +488,7 @@ async function run() {
     app.delete("/appointments/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
-      const result = await appointmentsCollection.deleteOne(query);
+      const result = await appointmentsCollection.deleteOne(filter);
       res.send(result);
     });
     app.get("/assignAppointments/:email", verifyToken, async (req, res) => {
@@ -621,12 +642,12 @@ async function run() {
     });
 
     // Connect the client to the server	(optional starting in v4.7)
-    // await client.connect();
-    // // Send a ping to confirm a successful connection
-    // await client.db("admin").command({ ping: 1 });
-    // console.log(
-    //   "Pinged your deployment. You successfully connected to MongoDB!"
-    // );
+    await client.connect();
+    // Send a ping to confirm a successful connection
+    await client.db("admin").command({ ping: 1 });
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!"
+    );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
