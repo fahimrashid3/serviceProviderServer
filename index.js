@@ -19,7 +19,7 @@ const port = process.env.PORT || 8000; // Set the server port
 // ==============================
 // Middleware Setup
 // ==============================
-app.use(cors()); // Enable CORS for all routes
+app.use(cors({ origin: "http://localhost:5173" })); // Replace with your frontend URL // Enable CORS for all routes
 app.use(express.json()); // Parse JSON request bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded request bodies
 app.use(bodyParser.urlencoded({ extended: true })); // Parse URL-encoded bodies (alternative to express.urlencoded)
@@ -237,17 +237,16 @@ async function run() {
     // user related apis
     app.post("/users", async (req, res) => {
       const user = req.body;
-      // insert user if user is new
       const query = { email: user.email };
       const existingUser = await usersCollection.findOne(query);
-      const existingProvider = await providersCollection.findOne(query);
-      // if (existingUser || existingProvider) {
+
       if (existingUser) {
         return res.send({
-          message: "Already exist in database",
+          message: "User already exists in the database",
           insertedId: null,
         });
       }
+
       const result = await usersCollection.insertOne(user);
       res.send(result);
     });
@@ -309,8 +308,6 @@ async function run() {
       res.send(result);
     });
     app.get("/topProvider", async (req, res) => {
-      console.log("API hit: /topProvider");
-
       try {
         const providers = await providersCollection.find({}).toArray();
 
@@ -445,6 +442,33 @@ async function run() {
     app.patch(
       "/appointmentUpdateWhenJoinRoom",
       verifyToken,
+      async (req, res) => {
+        const appointmentUpdateInfo = req.body;
+        const filter = {
+          _id: new ObjectId(appointmentUpdateInfo.appointmentId),
+        };
+        const options = { upsert: true };
+
+        const updateDoc = {
+          $set: {
+            status: appointmentUpdateInfo.status,
+            userMeetingLink: appointmentUpdateInfo.userMeetingLink,
+          },
+        };
+
+        const result = await appointmentsCollection.updateOne(
+          filter,
+          updateDoc,
+          options
+        );
+
+        res.send(result);
+      }
+    );
+    app.patch(
+      "/appointmentComplete",
+      verifyToken,
+      verifyProvider,
       async (req, res) => {
         const appointmentUpdateInfo = req.body;
         const filter = {
