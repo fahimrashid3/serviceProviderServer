@@ -29,8 +29,8 @@ app.use(bodyParser.json()); // Parse JSON bodies (alternative to express.json)
 // Rate Limiting Middleware
 // ==============================
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 1000, // Limit each IP to 1000 requests per windowMs
 });
 app.use(limiter); // Apply rate limiting to all requests
 
@@ -251,6 +251,45 @@ async function run() {
       res.send(result);
     });
 
+    app.patch("/user", async (req, res) => {
+      console.log("Request Body:", req.body); // Log the request body
+
+      const updatedUserInfo = req.body;
+      const email = updatedUserInfo.email;
+
+      if (!email) {
+        return res
+          .status(400)
+          .send({ success: false, message: "Email is required" });
+      }
+
+      const filter = { email: email };
+
+      const updateDoc = {
+        $set: {
+          name: updatedUserInfo.name,
+          phone: updatedUserInfo.phone,
+          photoUrl: updatedUserInfo.photoUrl, // Include photoUrl if needed
+        },
+      };
+
+      const options = { upsert: true }; // Enable upsert
+
+      try {
+        const result = await usersCollection.updateOne(
+          filter,
+          updateDoc,
+          options
+        );
+        console.log("Update Result:", result); // Log the update result
+        res.send(result);
+      } catch (error) {
+        console.error("Error updating user:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to update user" });
+      }
+    });
     app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
@@ -609,7 +648,7 @@ async function run() {
       try {
         const { _id } = req.params;
 
-        if (!_id || _id.length !== 24) {
+        if (!_id) {
           return res.status(400).json({ message: "Invalid blog ID format" });
         }
 
