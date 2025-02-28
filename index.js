@@ -761,13 +761,44 @@ async function run() {
       res.send(result);
     });
 
+    // contact related api
     app.post("/contacts", verifyToken, async (req, res) => {
       const contactSMSInfo = req.body;
-      const result = await contactsCollection.insertOne(contactSMSInfo);
-      res.send(result); // Make sure to send a response
+
+      // Add createdAt field with the current time as Date object
+      const data = {
+        ...contactSMSInfo,
+        createdAt: new Date(), // Save as Date object
+      };
+
+      // Insert the contact data with createdAt
+      const result = await contactsCollection.insertOne(data);
+
+      res.send(result); // Send the result back to the client
     });
+
     app.get("/contacts", async (req, res) => {
-      const result = await contactsCollection.find({}).toArray();
+      const result = await contactsCollection
+        .find({})
+        .sort({ createdAt: -1 })
+        .toArray();
+      res.send(result);
+    });
+    app.patch("/contactReplay", verifyToken, verifyAdmin, async (req, res) => {
+      const contactInfo = req.body;
+      const _id = contactInfo._id;
+      const updateDoc = {
+        $set: {
+          replay: contactInfo.replay,
+        },
+      };
+      const query = { _id: new ObjectId(_id) };
+      const options = { upsert: true };
+      const result = await contactsCollection.updateOne(
+        query,
+        updateDoc,
+        options
+      );
       res.send(result);
     });
 
