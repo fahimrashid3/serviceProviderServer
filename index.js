@@ -506,9 +506,7 @@ async function run() {
 
     // complete appointment related api
 
-    const { ObjectId } = require("mongodb");
-
-    app.post("/completeAppointment", async (req, res) => {
+    app.post("/completeAppointment", verifyProvider, async (req, res) => {
       try {
         const { appointmentId } = req.body;
 
@@ -525,13 +523,47 @@ async function run() {
           return res.status(404).json({ error: "Appointment not found" });
         }
 
+        // Extract required fields
+        const {
+          category,
+          email,
+          date,
+          userId,
+          price,
+          paymentId,
+          providerEmail,
+        } = appointment;
+
+        const appointmentHistory = {
+          category,
+          email,
+          date,
+          userId,
+          price,
+          paymentId,
+          providerEmail,
+          completedAt: new Date(),
+        };
+
         // Move to `appointmentsHistoryCollection`
-        await appointmentsHistoryCollection.insertOne(appointment);
+        const insertResult = await appointmentsHistoryCollection.insertOne(
+          appointmentHistory
+        );
+
+        if (!insertResult.acknowledged) {
+          return res
+            .status(500)
+            .json({ error: "Failed to save history record" });
+        }
 
         // Delete from `appointmentsCollection`
-        await appointmentsCollection.deleteOne(filter);
+        const deleteResult = await appointmentsCollection.deleteOne(filter);
 
-        res.status(200).json({ message: "Appointment completed successfully" });
+        res.status(200).json({
+          message: "Appointment completed successfully",
+          insertedId: insertResult.insertedId,
+          deletedCount: deleteResult.deletedCount,
+        });
       } catch (error) {
         res
           .status(500)
@@ -539,33 +571,33 @@ async function run() {
       }
     });
 
-    // app.patch(
-    //   "/appointmentComplete",
-    //   verifyToken,
-    //   verifyProvider,
-    //   async (req, res) => {
-    //     const appointmentUpdateInfo = req.body;
-    //     const filter = {
-    //       _id: new ObjectId(appointmentUpdateInfo.appointmentId),
-    //     };
-    //     const options = { upsert: true };
+    // provider complete appointment related api
+    app.get(
+      "/myAppointCompleteHistory",
+      verifyToken,
+      verifyProvider,
+      async (req, res) => {
+        try {
+          const { email } = req.query; // Get email from query parameters
 
-    //     const updateDoc = {
-    //       $set: {
-    //         status: appointmentUpdateInfo.status,
-    //         userMeetingLink: appointmentUpdateInfo.userMeetingLink,
-    //       },
-    //     };
+          if (!email) {
+            return res.status(400).json({ error: "Email is required" });
+          }
 
-    //     const result = await appointmentsCollection.updateOne(
-    //       filter,
-    //       updateDoc,
-    //       options
-    //     );
+          const query = { providerEmail: email };
+          const result = await appointmentsHistoryCollection
+            .find(query)
+            .sort({ completedAt: -1 })
+            .toArray();
 
-    //     res.send(result);
-    //   }
-    // );
+          res.send(result);
+        } catch (error) {
+          res
+            .status(500)
+            .json({ error: "Internal Server Error", details: error.message });
+        }
+      }
+    );
 
     // get all appointment data
     app.get("/AllAppointments", verifyToken, verifyAdmin, async (req, res) => {
