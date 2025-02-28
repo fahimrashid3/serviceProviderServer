@@ -66,6 +66,9 @@ async function run() {
       .db("serviceProvider")
       .collection("contacts");
     const blogsCollection = client.db("serviceProvider").collection("blogs");
+    const appointmentsHistoryCollection = client
+      .db("serviceProvider")
+      .collection("appointmentsHistory");
 
     // middlewares
     const verifyToken = (req, res, next) => {
@@ -251,9 +254,7 @@ async function run() {
       res.send(result);
     });
 
-    app.patch("/user", async (req, res) => {
-      console.log("Request Body:", req.body); // Log the request body
-
+    app.patch("/user", verifyToken, async (req, res) => {
       const updatedUserInfo = req.body;
       const email = updatedUserInfo.email;
 
@@ -281,10 +282,8 @@ async function run() {
           updateDoc,
           options
         );
-        console.log("Update Result:", result); // Log the update result
         res.send(result);
       } catch (error) {
-        console.error("Error updating user:", error);
         res
           .status(500)
           .send({ success: false, message: "Failed to update user" });
@@ -432,7 +431,7 @@ async function run() {
       res.send(result);
     });
 
-    // appointments  related  apis
+    // appointments related  apis
     app.post("/appointments", verifyToken, async (req, res) => {
       const appointmentDetails = req.body;
 
@@ -504,33 +503,69 @@ async function run() {
         res.send(result);
       }
     );
-    app.patch(
-      "/appointmentComplete",
-      verifyToken,
-      verifyProvider,
-      async (req, res) => {
-        const appointmentUpdateInfo = req.body;
-        const filter = {
-          _id: new ObjectId(appointmentUpdateInfo.appointmentId),
-        };
-        const options = { upsert: true };
 
-        const updateDoc = {
-          $set: {
-            status: appointmentUpdateInfo.status,
-            userMeetingLink: appointmentUpdateInfo.userMeetingLink,
-          },
-        };
+    // complete appointment related api
 
-        const result = await appointmentsCollection.updateOne(
-          filter,
-          updateDoc,
-          options
-        );
+    const { ObjectId } = require("mongodb");
 
-        res.send(result);
+    app.post("/completeAppointment", async (req, res) => {
+      try {
+        const { appointmentId } = req.body;
+
+        if (!appointmentId) {
+          return res.status(400).json({ error: "Appointment ID is required" });
+        }
+
+        const filter = { _id: new ObjectId(appointmentId) };
+
+        // Find the appointment first
+        const appointment = await appointmentsCollection.findOne(filter);
+
+        if (!appointment) {
+          return res.status(404).json({ error: "Appointment not found" });
+        }
+
+        // Move to `appointmentsHistoryCollection`
+        await appointmentsHistoryCollection.insertOne(appointment);
+
+        // Delete from `appointmentsCollection`
+        await appointmentsCollection.deleteOne(filter);
+
+        res.status(200).json({ message: "Appointment completed successfully" });
+      } catch (error) {
+        res
+          .status(500)
+          .json({ error: "Internal Server Error", details: error.message });
       }
-    );
+    });
+
+    // app.patch(
+    //   "/appointmentComplete",
+    //   verifyToken,
+    //   verifyProvider,
+    //   async (req, res) => {
+    //     const appointmentUpdateInfo = req.body;
+    //     const filter = {
+    //       _id: new ObjectId(appointmentUpdateInfo.appointmentId),
+    //     };
+    //     const options = { upsert: true };
+
+    //     const updateDoc = {
+    //       $set: {
+    //         status: appointmentUpdateInfo.status,
+    //         userMeetingLink: appointmentUpdateInfo.userMeetingLink,
+    //       },
+    //     };
+
+    //     const result = await appointmentsCollection.updateOne(
+    //       filter,
+    //       updateDoc,
+    //       options
+    //     );
+
+    //     res.send(result);
+    //   }
+    // );
 
     // get all appointment data
     app.get("/AllAppointments", verifyToken, verifyAdmin, async (req, res) => {
