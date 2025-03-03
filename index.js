@@ -451,6 +451,22 @@ async function run() {
         .toArray();
       res.send(result);
     });
+    app.get("/appointmentHistory", verifyToken, async (req, res) => {
+      const email = req.query.email;
+      const query = { email: email };
+
+      const result = await appointmentsHistoryCollection
+        .find(query)
+        .sort({ completedAt: -1 })
+        .toArray();
+
+      // Ensure completedAt is sent as a proper Date object
+      result.forEach((appointment) => {
+        appointment.completedAt = new Date(appointment.completedAt);
+      });
+
+      res.send(result);
+    });
 
     app.patch(
       "/appointmentUpdateByAdmin",
