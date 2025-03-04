@@ -872,12 +872,23 @@ async function run() {
         const [appointmentResult, historyResult] = await Promise.all([
           appointmentsCollection
             .aggregate([
-              { $group: { _id: "$category", totalAppointments: { $sum: 1 } } },
+              {
+                $group: {
+                  _id: "$category",
+                  totalAppointments: { $sum: 1 },
+                },
+              },
             ])
             .toArray(),
           appointmentsHistoryCollection
             .aggregate([
-              { $group: { _id: "$category", totalAppointments: { $sum: 1 } } },
+              {
+                $group: {
+                  _id: "$category",
+                  totalAppointments: { $sum: 1 },
+                  totalRevenue: { $sum: "$price" },
+                },
+              },
             ])
             .toArray(),
         ]);
