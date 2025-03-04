@@ -828,6 +828,45 @@ async function run() {
       res.send(result);
     });
 
+    // states
+    app.get("/adminStats", verifyToken, verifyAdmin, async (req, res) => {
+      try {
+        const userCount = await usersCollection.estimatedDocumentCount();
+        const appointmentHistoryCount =
+          await appointmentsHistoryCollection.estimatedDocumentCount();
+        const providerCount =
+          await providersCollection.estimatedDocumentCount();
+        const result = await appointmentsHistoryCollection
+          .aggregate([
+            {
+              $project: {
+                price: { $toDouble: "$price" },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: {
+                  $sum: "$price",
+                },
+              },
+            },
+          ])
+          .toArray();
+
+        const revenue = result.length > 0 ? result[0].totalRevenue : 0;
+
+        res.send({
+          userCount,
+          appointmentHistoryCount,
+          providerCount,
+          revenue,
+        });
+      } catch (error) {
+        res.status(500).send({ message: "Server Error", error });
+      }
+    });
+
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
     // Send a ping to confirm a successful connection
