@@ -867,6 +867,27 @@ async function run() {
       }
     });
 
+    app.get("/appointmentState", async (req, res) => {
+      try {
+        const [appointmentResult, historyResult] = await Promise.all([
+          appointmentsCollection
+            .aggregate([
+              { $group: { _id: "$category", totalAppointments: { $sum: 1 } } },
+            ])
+            .toArray(),
+          appointmentsHistoryCollection
+            .aggregate([
+              { $group: { _id: "$category", totalAppointments: { $sum: 1 } } },
+            ])
+            .toArray(),
+        ]);
+
+        res.json({ appointmentResult, historyResult });
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
     // Send a ping to confirm a successful connection
