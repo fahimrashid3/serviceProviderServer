@@ -371,6 +371,12 @@ async function run() {
       const result = await providersCollection.findOne(query);
       res.send(result);
     });
+    app.get("/provider/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const result = await providersCollection.findOne(query);
+      res.send(result);
+    });
     app.post("/providers", verifyToken, verifyAdmin, async (req, res) => {
       const providerInfo = req.body;
       const email = providerInfo.email;
@@ -691,7 +697,7 @@ async function run() {
         const newBlog = {
           title: data.title,
           content: data.content,
-          authorEmail: email, // Store email instead of ObjectId
+          authorEmail: email,
           img: data.img,
           category: authorINFO.category,
           time: formattedTime,
@@ -713,19 +719,24 @@ async function run() {
       }
     });
 
-    app.get("/myBlogs/:email", async (req, res) => {
-      const { email } = req.params;
+    app.get(
+      "/myBlogs/:email",
+      verifyToken,
+      verifyProvider,
+      async (req, res) => {
+        const { email } = req.params;
 
-      if (!email) {
-        return res.status(400).send({ message: "Email is required" });
+        if (!email) {
+          return res.status(400).send({ message: "Email is required" });
+        }
+
+        const blogs = await blogsCollection
+          .find({ authorEmail: email })
+          .sort({ createdAt: -1 })
+          .toArray();
+        res.send(blogs);
       }
-
-      const blogs = await blogsCollection
-        .find({ authorEmail: email })
-        .sort({ createdAt: -1 })
-        .toArray();
-      res.send(blogs);
-    });
+    );
 
     app.get("/blog/:_id", async (req, res) => {
       try {
@@ -803,7 +814,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/contacts", async (req, res) => {
+    app.get("/contacts", verifyToken, verifyAdmin, async (req, res) => {
       const result = await contactsCollection
         .find({})
         .sort({ createdAt: -1 })
@@ -867,7 +878,7 @@ async function run() {
       }
     });
 
-    app.get("/appointmentState", async (req, res) => {
+    app.get("/appointmentState", verifyToken, verifyAdmin, async (req, res) => {
       try {
         const [appointmentResult, historyResult] = await Promise.all([
           appointmentsCollection
