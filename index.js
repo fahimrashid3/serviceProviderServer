@@ -398,7 +398,8 @@ async function run() {
         // Update the user's role to "provider"
         const updateRoleResult = await usersCollection.updateOne(
           { email: email },
-          { $set: { role: "provider" } }
+          { $set: { role: "provider", photoUrl: providerInfo.userImg } },
+          { upsert: true }
         );
 
         if (updateRoleResult.modifiedCount > 0) {
@@ -415,6 +416,112 @@ async function run() {
         });
       }
     });
+    app.patch("/provider", verifyToken, verifyProvider, async (req, res) => {
+      try {
+        const providerInfo = req.body;
+        const email = providerInfo.email;
+
+        // Validate email
+        if (!email) {
+          return res.status(400).json({ message: "Email is required" });
+        }
+
+        // Find provider by email
+        const provider = await providersCollection.findOne({ email });
+
+        if (!provider) {
+          return res.status(404).json({ message: "Provider not found" });
+        }
+
+        // Find user by email
+        const user = await usersCollection.findOne({ email });
+
+        if (!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
+
+        // Detect changes
+        const changes = {};
+        const fieldsToCheck = [
+          "name",
+          "email",
+          "userImg",
+          "qualification",
+          "category",
+          "location",
+          "about",
+          "education",
+          "workingExperience",
+          "services",
+          "rewards",
+          "contactNumber",
+        ];
+
+        fieldsToCheck.forEach((field) => {
+          if (providerInfo[field] && providerInfo[field] !== provider[field]) {
+            changes[field] = providerInfo[field];
+          }
+        });
+
+        // Handle `timeTable` changes
+        if (providerInfo.timeTable) {
+          const timeTableChanges = {};
+          Object.keys(providerInfo.timeTable).forEach((day) => {
+            if (
+              providerInfo.timeTable[day] &&
+              providerInfo.timeTable[day] !== provider?.timeTable?.[day]
+            ) {
+              timeTableChanges[day] = providerInfo.timeTable[day];
+            }
+          });
+
+          if (Object.keys(timeTableChanges).length > 0) {
+            changes.timeTable = timeTableChanges;
+          }
+        }
+
+        // If no changes, return message
+        if (Object.keys(changes).length === 0) {
+          return res.json({
+            message: "No changes detected. No update required.",
+          });
+        }
+
+        // Update provider data
+        const updateResult = await providersCollection.updateOne(
+          { email },
+          { $set: changes }
+        );
+
+        if (updateResult.modifiedCount > 0) {
+          // Update user profile in `usersCollection`
+          await usersCollection.updateOne(
+            { email },
+            {
+              $set: {
+                name: providerInfo.name || provider.name,
+                photoUrl: providerInfo.userImg || provider.userImg,
+              },
+            },
+            { upsert: true } // Ensure user profile exists
+          );
+
+          return res.json({
+            message: "Provider updated successfully",
+            modifiedCount: updateResult.modifiedCount,
+            updatedFields: changes,
+          });
+        } else {
+          return res.json({
+            message: "No changes detected. No update required.",
+          });
+        }
+      } catch (error) {
+        console.error("Error updating provider:", error);
+        return res.status(500).json({ message: "Internal server error" });
+      }
+    });
+
     app.delete("/providers/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
