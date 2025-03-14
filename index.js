@@ -528,70 +528,77 @@ async function run() {
 
     // complete appointment related api
 
-    app.post("/completeAppointment", verifyProvider, async (req, res) => {
-      try {
-        const { appointmentId } = req.body;
+    app.post(
+      "/completeAppointment",
+      verifyToken,
+      verifyProvider,
+      async (req, res) => {
+        try {
+          const { appointmentId } = req.body;
 
-        if (!appointmentId) {
-          return res.status(400).json({ error: "Appointment ID is required" });
-        }
+          if (!appointmentId) {
+            return res
+              .status(400)
+              .json({ error: "Appointment ID is required" });
+          }
 
-        const filter = { _id: new ObjectId(appointmentId) };
+          const filter = { _id: new ObjectId(appointmentId) };
 
-        // Find the appointment first
-        const appointment = await appointmentsCollection.findOne(filter);
+          // Find the appointment first
+          const appointment = await appointmentsCollection.findOne(filter);
 
-        if (!appointment) {
-          return res.status(404).json({ error: "Appointment not found" });
-        }
+          if (!appointment) {
+            return res.status(404).json({ error: "Appointment not found" });
+          }
 
-        // Extract required fields
-        const {
-          category,
-          email,
-          date,
-          userId,
-          price,
-          paymentId,
-          providerEmail,
-        } = appointment;
+          // Extract required fields
+          const {
+            category,
+            email,
+            date,
+            userId,
+            price,
+            paymentId,
+            providerEmail,
+          } = appointment;
 
-        const appointmentHistory = {
-          category,
-          email,
-          date,
-          userId,
-          price,
-          paymentId,
-          providerEmail,
-          completedAt: new Date(),
-        };
+          const appointmentHistory = {
+            category,
+            email,
+            date,
+            userId,
+            price,
+            paymentId,
+            providerEmail,
+            completedAt: new Date(),
+          };
 
-        // Move to `appointmentsHistoryCollection`
-        const insertResult = await appointmentsHistoryCollection.insertOne(
-          appointmentHistory
-        );
+          // Move to `appointmentsHistoryCollection`
+          const insertResult = await appointmentsHistoryCollection.insertOne(
+            appointmentHistory
+          );
 
-        if (!insertResult.acknowledged) {
-          return res
+          if (!insertResult.acknowledged) {
+            return res
+              .status(500)
+              .json({ error: "Failed to save history record" });
+          }
+
+          // Delete from `appointmentsCollection`
+          const deleteResult = await appointmentsCollection.deleteOne(filter);
+
+          res.status(200).json({
+            message: "Appointment completed successfully",
+            insertedId: insertResult.insertedId,
+            deletedCount: deleteResult.deletedCount,
+          });
+        } catch (error) {
+          res
             .status(500)
-            .json({ error: "Failed to save history record" });
+            .json({ error: "Internal Server Error", details: error.message });
         }
-
-        // Delete from `appointmentsCollection`
-        const deleteResult = await appointmentsCollection.deleteOne(filter);
-
-        res.status(200).json({
-          message: "Appointment completed successfully",
-          insertedId: insertResult.insertedId,
-          deletedCount: deleteResult.deletedCount,
-        });
-      } catch (error) {
-        res
-          .status(500)
-          .json({ error: "Internal Server Error", details: error.message });
       }
-    });
+    );
 
     // provider complete appointment related api
     app.get(
