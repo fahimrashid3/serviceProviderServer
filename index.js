@@ -270,7 +270,7 @@ async function run() {
         $set: {
           name: updatedUserInfo.name,
           phone: updatedUserInfo.phone,
-          photoUrl: updatedUserInfo.photoUrl, // Include photoUrl if needed
+          photoUrl: updatedUserInfo.photoUrl,
         },
       };
 
@@ -578,6 +578,13 @@ async function run() {
         appointment.completedAt = new Date(appointment.completedAt);
       });
 
+      res.send(result);
+    });
+    app.get("/history", verifyToken, verifyAdmin, async (req, res) => {
+      const result = await appointmentsHistoryCollection
+        .find()
+        .sort({ completedAt: -1 })
+        .toArray();
       res.send(result);
     });
 
