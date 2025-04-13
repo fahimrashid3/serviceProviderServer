@@ -536,6 +536,12 @@ async function run() {
       res.send(result);
     });
 
+    app.post("/category", verifyToken, verifyAdmin, async (req, res) => {
+      const categoryInfo = req.body;
+      const result = await categoriesCollection.insertOne(categoryInfo);
+      res.send(result);
+    });
+
     app.get("/category", async (req, res) => {
       const categoryName = req.query.category;
 
