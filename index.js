@@ -623,26 +623,58 @@ async function run() {
       "/appointmentUpdateWhenJoinRoom",
       verifyToken,
       async (req, res) => {
-        const appointmentUpdateInfo = req.body;
-        const filter = {
-          _id: new ObjectId(appointmentUpdateInfo.appointmentId),
-        };
-        const options = { upsert: true };
+        try {
+          const { appointmentId, status, userMeetingLink, isProvider } =
+            req.body;
+          const filter = { _id: new ObjectId(appointmentId) };
 
-        const updateDoc = {
-          $set: {
-            status: appointmentUpdateInfo.status,
-            userMeetingLink: appointmentUpdateInfo.userMeetingLink,
-          },
-        };
+          // First get the current appointment
+          const currentAppointment = await appointmentsCollection.findOne(
+            filter
+          );
 
-        const result = await appointmentsCollection.updateOne(
-          filter,
-          updateDoc,
-          options
-        );
+          if (!currentAppointment) {
+            return res.status(404).send({ message: "Appointment not found" });
+          }
 
-        res.send(result);
+          const updateDoc = {};
+
+          if (isProvider) {
+            // Provider joining logic
+            if (!currentAppointment.userMeetingLink) {
+              // Only update if meeting link doesn't exist
+              updateDoc.$set = {
+                status: status || "in-progress",
+                userMeetingLink: userMeetingLink,
+              };
+            }
+            // Else - don't update anything for provider joining again
+          } else {
+            // User joining logic - always update status to "on-going"
+            updateDoc.$set = {
+              status: "on-going",
+            };
+          }
+
+          // Only update if there are changes to make
+          if (Object.keys(updateDoc).length > 0) {
+            const result = await appointmentsCollection.updateOne(
+              filter,
+              updateDoc
+            );
+            return res.send(result);
+          }
+
+          // If no changes were made (provider joining again)
+          return res.send({
+            acknowledged: true,
+            modifiedCount: 0,
+            message: "No changes made - provider already joined before",
+          });
+        } catch (error) {
+          console.error("Error updating appointment:", error);
+          res.status(500).send({ message: "Internal server error" });
+        }
       }
     );
 
